@@ -1,0 +1,23 @@
+{
+  "name": "kgs-player-hooks",
+  "version": "0.0.0",
+  "description": "Hooks into KGS (online Go server) player data",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": "",
+  "keywords": [
+    "kgs",
+    "go",
+    "hook",
+    "sgf"
+  ],
+  "author": "Merlyn Albery-Speyer",
+  "license": "MIT",
+  "dependencies": {
+    "express": "~3.3.4",
+    "jsdom": "~0.8.1",
+    "jade": "~0.34.1"
+  }
+}
