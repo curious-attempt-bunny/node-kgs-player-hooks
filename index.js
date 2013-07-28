@@ -3,6 +3,9 @@ var app     = express();
 var jsdom   = require('jsdom');
 var path    = require('path');
 var http    = require('http');
+var async   = require('async');
+var proxies = require('proxies');
+var request = require('request');
 
 app.configure(function(){
   app.set('port', process.env.PORT || 8080);
@@ -16,26 +19,77 @@ app.configure(function(){
   app.use(express.static(path.join(__dirname, 'public')));
 });
 
+var addGamesFrom = function(user, games, window, next) {
+  var additionalGames = window.$('td:contains("Ranked")').toArray().
+    map(function(td) {
+      return window.$(td).closest('tr');
+    }).
+    map(function (row) {
+      var started = Date.parse(window.$(row.find('td')[4]).text()+" GMT"); 
+      var rating  = /\[(.*)\]/.exec(window.$(row.find('td:contains("'+user+' [")')[0]).text())[1];
+      return {
+        sgf: row.find('a[href*="http://files.gokgs.com/games/"]')[0].href,
+        started: started, 
+        rating: rating 
+      };
+    });
+  additionalGames.forEach(function(game) { games.push(game); });
+  next();
+};
+
+var getWithProxy = function(url, next) {
+  proxies(function(proxy) {
+    console.log(proxy);
+    request.get({url: url, proxy: proxy}, function(error, response, body) {
+      if (error) {
+        console.error(error);
+        return next(error);
+      }
+      jsdom.env({
+        html: body.toString(),
+        scripts: ["http://code.jquery.com/jquery.js"],
+        done: function(errors, window) {
+          if (errors) {
+            console.error(errors);
+          }
+          next(errors, window);
+        }
+      });
+    });
+  });
+};
+
 app.get('/users/:id/games', function(req, res) {
   var url = "http://www.gokgs.com/gameArchives.jsp?user="+req.params.id; 
-  jsdom.env(
-    url, 
-    ["http://code.jquery.com/jquery.js"],
-    function (errors, window) {
-      var games = [];
-      var links = window.$('a[href*="http://files.gokgs.com/games/"]');
-
-      for(var i=0; i<links.length; i++) {
-        games.push({sgf: links[i].href});
-      }
-
-      res.send({source: url, games: games});
-    }
-  );
+  getWithProxy(url, function(errors, window) {
+    if (errors) { res.status(500); res.end(); return; }
+    var games = []; 
+    addGamesFrom(req.params.id, games, window, function() {
+//      var pages = [];
+//      window.$('a[href*="gameArchives"]').toArray().forEach(function(a) { 
+//        var page = a.href;
+//        if (page.indexOf('&year=') != -1) {
+//          page = "http://www.gokgs.com/gameArchives"+page.split("gameArchives")[1]
+//          pages.push(page);
+//        }
+//      });
+//      async.each(pages, function(page, next) {
+//        console.log(page);
+//        getWithProxy(page, function(errors, window) {
+//          if (errors) { return next(); }
+//          addGamesFrom(req.params.id, games, window, next);
+//        }); 
+//      }, function() {
+        games = games.sort(function(a,b) {
+          return b.started - a.started
+        });
+        res.send({source: url, games: games});
+//      });
+    });
+  });
 });
 
 app.get('/', function(req, res) {
-  console.dir(req);
   res.render('index', {exampleUrl: 'http://'+req.headers.host+'/users/nicholebb/games'});
 });
 
