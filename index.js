@@ -37,14 +37,26 @@ var addGamesFrom = function(user, games, window, next) {
   next();
 };
 
+var getArchivedGamesFrom = function(page, user, games, next) {
+  getWithProxy(page, function(errors, window) {
+    if (errors) { return next(); }
+    addGamesFrom(user, games, window, next);
+  });
+};
+
 var getWithProxy = function(url, next) {
   proxies(function(proxy) {
     console.log(proxy);
+    console.log(url);
     request.get({url: url, proxy: proxy}, function(error, response, body) {
+      if (!error && response.statusCode > 400) {
+        error = "Response statusCode: "+response.statusCode;
+      }
       if (error) {
         console.error(error);
         return next(error);
       }
+
       jsdom.env({
         html: body.toString(),
         scripts: ["http://code.jquery.com/jquery.js"],
@@ -60,31 +72,30 @@ var getWithProxy = function(url, next) {
 };
 
 app.get('/users/:id/games', function(req, res) {
-  var url = "http://www.gokgs.com/gameArchives.jsp?user="+req.params.id; 
+  var user = req.params.id;
+  var url = "http://www.gokgs.com/gameArchives.jsp?user="+user; 
   getWithProxy(url, function(errors, window) {
     if (errors) { res.status(500); res.end(); return; }
     var games = []; 
-    addGamesFrom(req.params.id, games, window, function() {
-//      var pages = [];
-//      window.$('a[href*="gameArchives"]').toArray().forEach(function(a) { 
-//        var page = a.href;
-//        if (page.indexOf('&year=') != -1) {
-//          page = "http://www.gokgs.com/gameArchives"+page.split("gameArchives")[1]
-//          pages.push(page);
-//        }
-//      });
-//      async.each(pages, function(page, next) {
-//        console.log(page);
-//        getWithProxy(page, function(errors, window) {
-//          if (errors) { return next(); }
-//          addGamesFrom(req.params.id, games, window, next);
-//        }); 
-//      }, function() {
-        games = games.sort(function(a,b) {
-          return b.started - a.started
+    addGamesFrom(user, games, window, function() {
+      var pages = [];
+      window.$('a[href*="gameArchives"]').toArray().forEach(function(a) { 
+        var page = a.href;
+        console.log(page);
+        if (page.indexOf('&year=') != -1) {
+          page = "http://www.gokgs.com/gameArchives"+page.split("gameArchives")[1]
+          pages.push(page);
+        }
+      });
+      async.each(pages, function(page, next) {
+          console.log(page);
+          getArchivedGamesFrom(page, user, games, next);
+        }, function() {
+          games = games.sort(function(a,b) {
+            return b.started - a.started
         });
         res.send({source: url, games: games});
-//      });
+      });
     });
   });
 });
