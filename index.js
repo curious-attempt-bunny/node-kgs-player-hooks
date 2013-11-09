@@ -1,11 +1,12 @@
-var express = require('express');
-var app     = express();
-var jsdom   = require('jsdom');
-var path    = require('path');
-var http    = require('http');
-var async   = require('async');
-var proxies = require('proxies');
-var request = require('request');
+var express   = require('express');
+var app       = express();
+var jsdom     = require('jsdom');
+var path      = require('path');
+var http      = require('http');
+var async     = require('async');
+var proxies   = require('proxies');
+var request   = require('request');
+var userStore = require('./lib/userStore');
 
 app.configure(function(){
   app.set('port', process.env.PORT || 8080);
@@ -34,13 +35,25 @@ var addGamesFrom = function(user, games, window, next) {
       };
     });
   additionalGames.forEach(function(game) { games.push(game); });
-  next();
+  next(null, additionalGames);
 };
 
 var getArchivedGamesFrom = function(page, user, games, next) {
-  getWithProxy(page, function(errors, window) {
-    if (errors) { return next(); }
-    addGamesFrom(user, games, window, next);
+  userStore.getArchiveGames(user, page, function(error, archivedGames) {
+    if (archivedGames) {
+      console.log("Cache hit for page "+page);
+      archivedGames.forEach(function(game) { games.push(game); });
+      return next();
+    }
+    getWithProxy(page, function(errors, window) {
+      if (errors) { return next(); }
+      addGamesFrom(user, games, window, function(error, additionalGames) {
+        if (error) {
+          return next(error);
+        }
+        userStore.setArchiveGames(user, page, additionalGames, next);
+      });
+    });
   });
 };
 
