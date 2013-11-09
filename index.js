@@ -45,6 +45,10 @@ var getArchivedGamesFrom = function(page, user, games, next) {
 };
 
 var getWithProxy = function(url, next) {
+  retryGetWithProxy(3, url, next);
+};
+
+var retryGetWithProxy = function(remainingRetries, url, next) {
   proxies(function(proxy) {
     console.log(proxy);
     console.log(url);
@@ -54,7 +58,12 @@ var getWithProxy = function(url, next) {
       }
       if (error) {
         console.error(error);
-        return next(error);
+        if (remainingRetries > 0) {
+          console.error("Retrying ("+(remainingRetries-1)+" left) for "+url);
+          return retryGetWithProxy(remainingRetries-1, url, next);
+        } else {
+          return next(error);
+        }
       }
 
       jsdom.env({
@@ -69,7 +78,7 @@ var getWithProxy = function(url, next) {
       });
     });
   });
-};
+}
 
 app.get('/users/:id/games', function(req, res) {
   var user = req.params.id;
