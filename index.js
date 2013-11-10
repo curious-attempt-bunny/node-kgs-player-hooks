@@ -99,12 +99,12 @@ app.get('/users/:id/games', function(req, res) {
 
   var intervalId = setInterval(function() {
     try {
-      res.write(" ");
+      res.write("  \n");
     } catch(e) {
       console.error(e);
       clearInterval(intervalId);
     }
-  }, 100);
+  }, 3000);
   res.status(200);
   // http://nodejs.org/api/http.html#http_response_write_chunk_encoding
   // "The second time response.write() is called, Node assumes you're going to be streaming data, and sends that separately."
