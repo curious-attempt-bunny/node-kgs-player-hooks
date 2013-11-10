@@ -93,24 +93,34 @@ var retryGetWithProxy = function(remainingRetries, url, next) {
   });
 };
 
-// We're making this more complex (streaming and newline at intervals) to work around Heroku's connection idle handling
-app.get('/users/:id/games', function(req, res) {
-  var user = req.params.id;
-  var url = "http://www.gokgs.com/gameArchives.jsp?user="+user;
-
+var keepResponseAlive = function(response, interval, next) {
   var intervalId = setInterval(function() {
     try {
-      res.write("  \n");
+      response.write("  \n");
     } catch(e) {
       console.error(e);
       clearInterval(intervalId);
+      if (next) {
+        next();
+      }
     }
-  }, 3000);
+  }, interval || 3000);
+};
+
+// We're making this more complex (streaming and newline at intervals) to work around Heroku's connection idle handling
+app.get('/users/:id/games', function(req, res) {
+  keepResponseAlive(res);
+  
+  var user = req.params.id;
+  var url = "http://www.gokgs.com/gameArchives.jsp?user="+user;
+
   res.status(200);
+
   // http://nodejs.org/api/http.html#http_response_write_chunk_encoding
   // "The second time response.write() is called, Node assumes you're going to be streaming data, and sends that separately."
   res.write("{ \n");
   res.write("  \"source\": \""+url+"\", \n");
+
   getWithProxy(url, function(errors, window) {
     if (errors) { res.status(500); res.end(); return; }
     var games = [];
