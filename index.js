@@ -119,7 +119,11 @@ app.get('/users/:id/games', function(req, res) {
   // http://nodejs.org/api/http.html#http_response_write_chunk_encoding
   // "The second time response.write() is called, Node assumes you're going to be streaming data, and sends that separately."
   res.write("{ \n");
+  res.write("  \"user\": \""+user+"\", \n");
   res.write("  \"source\": \""+url+"\", \n");
+  updatedAt = Date.now();
+  res.write("  \"updated_at\": "+updatedAt+", \n");
+  res.write("  \"updated_at_readable\": \""+new Date(updatedAt).toGMTString()+"\", \n");
 
   getWithProxy(url, function(errors, window) {
     if (errors) { res.status(500); res.end(); return; }
@@ -142,6 +146,11 @@ app.get('/users/:id/games', function(req, res) {
             return b.started - a.started;
         });
         res.write("  \"games\": ");
+        games.forEach(function(game) {
+          game.started_at = game.started;
+          delete(game.started);
+          game.started_at_readable = new Date(game.started_at).toGMTString();
+        });
         res.write(JSON.stringify(games, null, "  "));
         res.write("\n");
         res.write("}");
