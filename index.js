@@ -26,12 +26,12 @@ var addGamesFrom = function(user, games, window, next) {
       return window.$(td).closest('tr');
     }).
     map(function (row) {
-      var started = Date.parse(window.$(row.find('td')[4]).text()+" GMT"); 
+      var started = Date.parse(window.$(row.find('td')[4]).text()+" GMT");
       var rating  = /\[(.*)\]/.exec(window.$(row.find('td:contains("'+user+' [")')[0]).text())[1];
       return {
         sgf: row.find('a[href*="http://files.gokgs.com/games/"]')[0].href,
-        started: started, 
-        rating: rating 
+        started: started,
+        rating: rating
       };
     });
   additionalGames.forEach(function(game) { games.push(game); });
@@ -91,21 +91,27 @@ var retryGetWithProxy = function(remainingRetries, url, next) {
       });
     });
   });
-}
+};
 
 app.get('/users/:id/games', function(req, res) {
   var user = req.params.id;
-  var url = "http://www.gokgs.com/gameArchives.jsp?user="+user; 
+  var url = "http://www.gokgs.com/gameArchives.jsp?user="+user;
+
+  res.status(200);
+  // http://nodejs.org/api/http.html#http_response_write_chunk_encoding
+  // "The second time response.write() is called, Node assumes you're going to be streaming data, and sends that separately."
+  res.write("{ \n");
+  res.write("  \"source\": \""+url+"\", \n");
   getWithProxy(url, function(errors, window) {
     if (errors) { res.status(500); res.end(); return; }
-    var games = []; 
+    var games = [];
     addGamesFrom(user, games, window, function() {
       var pages = [];
-      window.$('a[href*="gameArchives"]').toArray().forEach(function(a) { 
+      window.$('a[href*="gameArchives"]').toArray().forEach(function(a) {
         var page = a.href;
         console.log(page);
         if (page.indexOf('&year=') != -1) {
-          page = "http://www.gokgs.com/gameArchives"+page.split("gameArchives")[1]
+          page = "http://www.gokgs.com/gameArchives"+page.split("gameArchives")[1];
           pages.push(page);
         }
       });
@@ -114,9 +120,13 @@ app.get('/users/:id/games', function(req, res) {
           getArchivedGamesFrom(page, user, games, next);
         }, function() {
           games = games.sort(function(a,b) {
-            return b.started - a.started
+            return b.started - a.started;
         });
-        res.send({source: url, games: games});
+        res.write("  \"games\": ");
+        res.write(JSON.stringify(games, null, "  "));
+        res.write("\n");
+        res.write("}");
+        res.end();
       });
     });
   });
