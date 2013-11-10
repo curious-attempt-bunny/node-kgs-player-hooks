@@ -7,6 +7,7 @@ var async     = require('async');
 var proxies   = require('proxies');
 var request   = require('request');
 var userStore = require('./lib/userStore');
+var urlParse  = require('url').parse;
 
 app.configure(function(){
   app.set('port', process.env.PORT || 8080);
@@ -116,6 +117,8 @@ app.get('/users/:id/games', function(req, res) {
 
   res.status(200);
 
+  var threeMonthsAgo = new Date(Date.now()-(1000*60*60*24*31*3)).valueOf();
+
   // http://nodejs.org/api/http.html#http_response_write_chunk_encoding
   // "The second time response.write() is called, Node assumes you're going to be streaming data, and sends that separately."
   res.write("{ \n");
@@ -132,9 +135,14 @@ app.get('/users/:id/games', function(req, res) {
       var pages = [];
       window.$('a[href*="&year="][href*="&month="][href*="gameArchives"]').toArray().forEach(function(a) {
         var page = a.href;
-        console.log(page);
-        page = "http://www.gokgs.com/gameArchives"+page.split("gameArchives")[1];
-        pages.push(page);
+        var queryParams = urlParse(page, true).query;
+        var date = new Date(parseInt(queryParams.year), parseInt(queryParams.month)-1, 1).valueOf();
+        var recent = date >= threeMonthsAgo;
+        // console.log("recent? "+recent+" "+page);
+        if (recent) {
+          page = "http://www.gokgs.com/gameArchives"+page.split("gameArchives")[1];
+          pages.push(page);
+        }
       });
       async.each(pages, function(page, next) {
           console.log(page);
