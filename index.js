@@ -93,6 +93,7 @@ var retryGetWithProxy = function(remainingRetries, url, next) {
   });
 };
 
+// We're making this more complex (streaming and newline at intervals) to work around Heroku's connection idle handling
 app.get('/users/:id/games', function(req, res) {
   var user = req.params.id;
   var url = "http://www.gokgs.com/gameArchives.jsp?user="+user;
