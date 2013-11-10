@@ -8,6 +8,7 @@ var proxies   = require('proxies');
 var request   = require('request');
 var userStore = require('./lib/userStore');
 var urlParse  = require('url').parse;
+var moment    = require('moment');
 
 app.configure(function(){
   app.set('port', process.env.PORT || 8080);
@@ -39,21 +40,30 @@ var addGamesFrom = function(user, games, window, next) {
   next(null, additionalGames);
 };
 
-var getArchivedGamesFrom = function(page, user, games, next) {
+var getArchivedGamesWithoutCacheFrom = function(page, user, games, next) {
+  getWithProxy(page, function(errors, window) {
+    if (errors) { return next(); }
+    addGamesFrom(user, games, window, function(error, additionalGames) {
+      if (error) {
+        return next(error);
+      }
+      next(error, additionalGames);
+    });
+  });
+};
+
+var getArchivedGamesWithCacheFrom = function(page, user, games, next) {
   userStore.getArchiveGames(user, page, function(error, archivedGames) {
     if (archivedGames) {
       console.log("Cache hit for page "+page);
       archivedGames.forEach(function(game) { games.push(game); });
       return next();
     }
-    getWithProxy(page, function(errors, window) {
-      if (errors) { return next(); }
-      addGamesFrom(user, games, window, function(error, additionalGames) {
-        if (error) {
-          return next(error);
-        }
-        userStore.setArchiveGames(user, page, additionalGames, next);
-      });
+    getArchivedGamesWithoutCacheFrom(page, user, games, function(errors, additionalGames) {
+      if (error) {
+        return next(error);
+      }
+      userStore.setArchiveGames(user, page, additionalGames, next);
     });
   });
 };
@@ -117,52 +127,44 @@ app.get('/users/:id/games', function(req, res) {
 
   res.status(200);
 
-  var threeMonthsAgo = new Date(Date.now()-(1000*60*60*24*31*3)).valueOf();
-
   // http://nodejs.org/api/http.html#http_response_write_chunk_encoding
   // "The second time response.write() is called, Node assumes you're going to be streaming data, and sends that separately."
   res.write("{ \n");
   res.write("  \"user\": \""+user+"\", \n");
   res.write("  \"source\": \""+url+"\", \n");
-  updatedAt = Date.now();
+  var updatedAt = Date.now();
   res.write("  \"updated_at\": "+updatedAt+", \n");
   res.write("  \"updated_at_readable\": \""+new Date(updatedAt).toGMTString()+"\", \n");
 
-  getWithProxy(url, function(errors, window) {
-    if (errors) { res.status(500); res.end(); return; }
-    var games = [];
-    addGamesFrom(user, games, window, function() {
-      var pages = [];
-      window.$('a[href*="&year="][href*="&month="][href*="gameArchives"]').toArray().forEach(function(a) {
-        var page = a.href;
-        var queryParams = urlParse(page, true).query;
-        var date = new Date(parseInt(queryParams.year), parseInt(queryParams.month)-1, 1).valueOf();
-        var recent = date >= threeMonthsAgo;
-        // console.log("recent? "+recent+" "+page);
-        if (recent) {
-          page = "http://www.gokgs.com/gameArchives"+page.split("gameArchives")[1];
-          pages.push(page);
-        }
-      });
-      async.each(pages, function(page, next) {
-          console.log(page);
-          getArchivedGamesFrom(page, user, games, next);
-        }, function() {
-          games = games.sort(function(a,b) {
-            return b.started - a.started;
-        });
-        res.write("  \"games\": ");
-        games.forEach(function(game) {
-          game.started_at = game.started;
-          delete(game.started);
-          game.started_at_readable = new Date(game.started_at).toGMTString();
-        });
-        res.write(JSON.stringify(games, null, "  "));
-        res.write("\n");
-        res.write("}");
-        res.end();
-      });
+  var games = [];
+  var pages = [];
+  var date = moment();
+  for(var i=0; i<=3; i++) {
+    pages.push(url+"&year="+date.year()+"&month="+(date.month()+1));
+    date.subtract("months", 1);
+  }
+
+  async.each(pages, function(page, next) {
+      console.log(page);
+      if (page == pages[0]) {
+        getArchivedGamesWithoutCacheFrom(page, user, games, next);
+      } else {
+        getArchivedGamesWithCacheFrom(page, user, games, next);
+      }
+    }, function() {
+      games = games.sort(function(a,b) {
+        return b.started - a.started;
     });
+    res.write("  \"games\": ");
+    games.forEach(function(game) {
+      game.started_at = game.started;
+      delete(game.started);
+      game.started_at_readable = new Date(game.started_at).toGMTString();
+    });
+    res.write(JSON.stringify(games, null, "  "));
+    res.write("\n");
+    res.write("}");
+    res.end();
   });
 });
 
