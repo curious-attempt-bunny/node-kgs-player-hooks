@@ -97,6 +97,14 @@ app.get('/users/:id/games', function(req, res) {
   var user = req.params.id;
   var url = "http://www.gokgs.com/gameArchives.jsp?user="+user;
 
+  var intervalId = setInterval(function() {
+    try {
+      res.write(" ");
+    } catch(e) {
+      console.error(e);
+      clearInterval(intervalId);
+    }
+  }, 100);
   res.status(200);
   // http://nodejs.org/api/http.html#http_response_write_chunk_encoding
   // "The second time response.write() is called, Node assumes you're going to be streaming data, and sends that separately."
