@@ -65,7 +65,7 @@ var retryGetWithProxy = function(remainingRetries, url, next) {
   proxies(function(proxy) {
     console.log(proxy);
     console.log(url);
-    request.get({url: url, proxy: proxy}, function(error, response, body) {
+    request.get({url: url, proxy: proxy, timeout: 8000}, function(error, response, body) {
       if (!error && response.statusCode > 400) {
         error = "Response statusCode: "+response.statusCode;
       }
@@ -130,13 +130,11 @@ app.get('/users/:id/games', function(req, res) {
     var games = [];
     addGamesFrom(user, games, window, function() {
       var pages = [];
-      window.$('a[href*="gameArchives"]').toArray().forEach(function(a) {
+      window.$('a[href*="&year="][href*="&month="][href*="gameArchives"]').toArray().forEach(function(a) {
         var page = a.href;
         console.log(page);
-        if (page.indexOf('&year=') != -1) {
-          page = "http://www.gokgs.com/gameArchives"+page.split("gameArchives")[1];
-          pages.push(page);
-        }
+        page = "http://www.gokgs.com/gameArchives"+page.split("gameArchives")[1];
+        pages.push(page);
       });
       async.each(pages, function(page, next) {
           console.log(page);
@@ -165,3 +163,7 @@ app.get('/', function(req, res) {
 });
 
 http.createServer(app).listen(app.get('port'));
+
+proxies(function(proxy) {
+  console.log("Proxies warm.");
+});
