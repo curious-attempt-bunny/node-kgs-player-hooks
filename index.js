@@ -140,7 +140,8 @@ app.get('/users/:id/games', function(req, res) {
   var pages = [];
   var date = moment();
   for(var i=0; i<=3; i++) {
-    pages.push(url+"&year="+date.year()+"&month="+(date.month()+1));
+    var monthUrl = url+"&year="+date.year()+"&month="+(date.month()+1);
+    pages.push(monthUrl);
     date.subtract("months", 1);
   }
 
