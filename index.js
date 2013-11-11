@@ -145,15 +145,15 @@ app.get('/users/:id/games', function(req, res) {
   }
 
   async.each(pages, function(page, next) {
-      console.log(page);
-      if (page == pages[0]) {
-        getArchivedGamesWithoutCacheFrom(page, user, games, next);
-      } else {
-        getArchivedGamesWithCacheFrom(page, user, games, next);
-      }
-    }, function() {
-      games = games.sort(function(a,b) {
-        return b.started - a.started;
+    console.log(page);
+    if (page == pages[0]) {
+      getArchivedGamesWithoutCacheFrom(page, user, games, next);
+    } else {
+      getArchivedGamesWithCacheFrom(page, user, games, next);
+    }
+  }, function() {
+    games = games.sort(function(a,b) {
+      return b.started - a.started;
     });
     res.write("  \"games\": ");
     games.forEach(function(game) {
